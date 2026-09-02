@@ -168,9 +168,6 @@ def main():
             
         print("\n[UI] Push-to-Talk triggered. (Green).")
         
-        # Risk 1 Fix: Refresh hardware indices dynamically to survive USB hot-plugging
-        refresh_audio_devices()
-        
         print("[UI] Speak your command now... (Click again to stop)")
         
         import subprocess
