@@ -1,35 +1,36 @@
+import subprocess
 import os
-import requests
 
 class LocalLLM:
     """
-    Handles local LLM inference via the Ollama REST API.
+    Python wrapper that bridges to the TypeScript Agent Core.
+    Instead of calling Ollama directly, it offloads complex reasoning and 
+    MCP tool execution to the TS process.
     """
-    def __init__(self):
-        # Read from the local .env configuration
-        self.host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        self.model = os.getenv("OLLAMA_MODEL", "phi3:mini")
-        self.temperature = float(os.getenv("OLLAMA_TEMPERATURE", "0.3"))
-        self.api_url = f"{self.host}/api/generate"
+    def __init__(self, model: str = None):
+        self.model = model or os.getenv("OLLAMA_MODEL", "phi3:mini")
 
     def generate(self, prompt: str, system_prompt: str = "") -> str:
         """
-        Sends the user's prompt to the local Ollama model and returns the response.
+        Executes the TypeScript brain via IPC (subprocess).
+        Ensures Peter can execute MCP tools before speaking.
         """
-        payload = {
-            "model": self.model,
-            "prompt": prompt,
-            "system": system_prompt,
-            "temperature": self.temperature,
-            "stream": False
-        }
-        
         try:
-            print(f"[LLM] Connecting to local model '{self.model}' at {self.host}...")
-            response = requests.post(self.api_url, json=payload, timeout=60)
-            response.raise_for_status()
-            data = response.json()
-            return data.get("response", "").strip()
-        except requests.exceptions.RequestException as e:
-            print(f"[LLM Error] Failed to communicate with local Ollama instance: {e}")
-            return "I am currently unable to connect to my local processing core. Please ensure Ollama is running."
+            # We use npx tsx to execute the typescript file dynamically
+            result = subprocess.run(
+                ["npx", "tsx", "src/agent/cli.ts", prompt, self.model],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            # Parse the strict response marker to ignore TS console.log spam
+            output = result.stdout
+            if "__PETER_RESPONSE__:" in output:
+                return output.split("__PETER_RESPONSE__:")[1].strip()
+            
+            return output.strip()
+            
+        except subprocess.CalledProcessError as e:
+            print(f"[Python Bridge Error] TS Process Failed:\n{e.stderr}")
+            return "My typescript core experienced a critical fault."

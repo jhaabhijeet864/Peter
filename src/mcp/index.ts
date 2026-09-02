@@ -58,13 +58,14 @@ export class PeterMCPServer {
     }
 }
 
-// Scaffold execution and register ALL 10 tools!
+// Scaffold execution and register ALL tools
 const server = new PeterMCPServer();
 
-// 1. Monitoring
+// 1. Monitoring & Hardware
 server.registerTool(new PerformanceTool());
 server.registerTool(new BatteryTool());
 server.registerTool(new ActiveWindowTool());
+server.registerTool(new HardwareAwarenessTool());
 
 // 2. Toggles
 server.registerTool(new VolumeTool());
