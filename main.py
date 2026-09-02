@@ -85,14 +85,33 @@ def main():
     selected_speaker_index = None
 
     def get_mics():
-        import speech_recognition as sr
-        return sr.Microphone.list_microphone_names()
+        import pyaudio
+        p = pyaudio.PyAudio()
+        mics = []
+        seen_names = set()
+        for i in range(p.get_device_count()):
+            info = p.get_device_info_by_index(i)
+            if info["maxInputChannels"] > 0:
+                try:
+                    name = info["name"].encode('cp1252', errors='ignore').decode('utf-8', errors='ignore')
+                except Exception:
+                    name = info["name"]
+                # Windows exposes the same hardware across MME, DirectSound, and WASAPI APIs. 
+                # We strip the API suffixes to deduplicate the visual list for the user.
+                clean_name = name.replace("(MME)", "").replace("(DirectSound)", "").replace("(WASAPI)", "").strip()
+                
+                # Further deduplication based on prefix
+                short_name = clean_name[:15]
+                if short_name not in seen_names:
+                    seen_names.add(short_name)
+                    mics.append({"index": i, "name": name})
+        p.terminate()
+        return mics
 
     def set_mic(index):
         nonlocal selected_mic_index
         selected_mic_index = index
-        import speech_recognition as sr
-        print(f"\n[Hardware] Microphone routed to: {sr.Microphone.list_microphone_names()[index]}")
+        print(f"\n[Hardware] Microphone routed to device index: {index}")
 
     def current_mic():
         return selected_mic_index
@@ -101,15 +120,20 @@ def main():
         import pyaudio
         p = pyaudio.PyAudio()
         speakers = []
+        seen_names = set()
         for i in range(p.get_device_count()):
             info = p.get_device_info_by_index(i)
             if info["maxOutputChannels"] > 0:
-                # Handle Windows ANSI encoding mess cleanly
                 try:
-                    name = info["name"].encode('cp1252').decode('utf-8')
+                    name = info["name"].encode('cp1252', errors='ignore').decode('utf-8', errors='ignore')
                 except Exception:
                     name = info["name"]
-                speakers.append({"index": i, "name": name})
+                
+                clean_name = name.replace("(MME)", "").replace("(DirectSound)", "").replace("(WASAPI)", "").strip()
+                short_name = clean_name[:15]
+                if short_name not in seen_names:
+                    seen_names.add(short_name)
+                    speakers.append({"index": i, "name": name})
         p.terminate()
         return speakers
 
@@ -127,22 +151,66 @@ def main():
             return 
             
         print("\n[UI] Push-to-Talk triggered. (Green).")
-        print("[DEBUG] Bypassing PyAudio hardware hook due to fatal Windows PortAudio segfault.")
         
-        # FALLBACK TO TERMINAL TYPING TO TEST THE AI ENGINE
+        import speech_recognition as sr
+        r = sr.Recognizer()
+        r.energy_threshold = 150 
+        r.dynamic_energy_threshold = True
+        r.pause_threshold = 1.0 
+        
+        print("\n[UI] Push-to-Talk triggered. Microphone Active (Green).")
+        print("[UI] Speak your command now... (Recording for 6 seconds)")
+        
+        # Phase 14 FIX: Completely bypassing PyAudio/PortAudio initialization to prevent Windows driver segfaults.
+        # We instead use `sounddevice` (which you just proved works) to record a fixed clip, save it natively, and transcribe.
+        import sounddevice as sd
+        import wave
+        import os
+        
+        fs = 16000
+        duration = 6
+        
         try:
-            user_input = input("\n[UI] ⌨️ Type your command for Peter (e.g., 'What is my battery?'): ").strip()
-        except EOFError:
-            user_input = ""
+            # Record audio directly via sounddevice
+            recording = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
+            sd.wait()
             
+            ui.set_state("processing")
+            print("\n[UI] Processing Intent (Yellow)...")
+            
+            # Save to temporary WAV
+            temp_wav = "temp_voice.wav"
+            with wave.open(temp_wav, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2) # 16-bit
+                wf.setframerate(fs)
+                wf.writeframes(recording.tobytes())
+                
+            # Transcribe the WAV file safely without touching PyAudio
+            import speech_recognition as sr
+            r = sr.Recognizer()
+            with sr.AudioFile(temp_wav) as source:
+                audio = r.record(source)
+                
+            user_input = r.recognize_google(audio)
+            print(f"[STT] Transcribed: '{user_input}'")
+            
+            # Cleanup
+            if os.path.exists(temp_wav):
+                os.remove(temp_wav)
+                
+        except Exception as e:
+            print(f"[STT] Voice recognition failed: {e}")
+            # FALLBACK
+            try:
+                user_input = input("\n[UI] ⌨️ Audio failed. Type your command: ").strip()
+            except EOFError:
+                user_input = ""
+                
         if not user_input:
             ui.set_state("idle")
             return
             
-        ui.set_state("processing")
-        print(f"\n[UI] Processing Intent (Yellow)...")
-        print(f"[STT] Typed: '{user_input}'")
-        
         listener.is_muted = True 
         try:
             response = llm.generate(user_input, system_prompt=system_prompt)
