@@ -151,43 +151,26 @@ def main():
             return 
             
         print("\n[UI] Push-to-Talk triggered. (Green).")
-        
-        import speech_recognition as sr
-        r = sr.Recognizer()
-        r.energy_threshold = 150 
-        r.dynamic_energy_threshold = True
-        r.pause_threshold = 1.0 
-        
-        print("\n[UI] Push-to-Talk triggered. Microphone Active (Green).")
         print("[UI] Speak your command now... (Recording for 6 seconds)")
         
-        # Phase 14 FIX: Completely bypassing PyAudio/PortAudio initialization to prevent Windows driver segfaults.
-        # We instead use `sounddevice` (which you just proved works) to record a fixed clip, save it natively, and transcribe.
-        import sounddevice as sd
-        import wave
+        # Phase 14 FIX: PortAudio is fundamentally segfaulting on your Intel Driver.
+        # By running the microphone capture in a completely isolated sub-process, 
+        # a C-level hardware crash will NOT kill Peter. It will just safely fallback!
+        import subprocess
         import os
+        import speech_recognition as sr
         
-        fs = 16000
-        duration = 6
+        temp_wav = "temp_voice.wav"
+        user_input = ""
         
         try:
-            # Record audio directly via sounddevice
-            recording = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
-            sd.wait()
+            # Launch isolated hardware process
+            subprocess.run(["python", "services/audio/stt/recorder.py", temp_wav, "6"], check=True)
             
             ui.set_state("processing")
             print("\n[UI] Processing Intent (Yellow)...")
             
-            # Save to temporary WAV
-            temp_wav = "temp_voice.wav"
-            with wave.open(temp_wav, "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2) # 16-bit
-                wf.setframerate(fs)
-                wf.writeframes(recording.tobytes())
-                
-            # Transcribe the WAV file safely without touching PyAudio
-            import speech_recognition as sr
+            # Transcribe the WAV file safely without touching PyAudio/PortAudio
             r = sr.Recognizer()
             with sr.AudioFile(temp_wav) as source:
                 audio = r.record(source)
@@ -195,15 +178,24 @@ def main():
             user_input = r.recognize_google(audio)
             print(f"[STT] Transcribed: '{user_input}'")
             
-            # Cleanup
-            if os.path.exists(temp_wav):
-                os.remove(temp_wav)
-                
+        except subprocess.CalledProcessError:
+            # THIS CATCHES THE FATAL C-SEGFAULT!
+            print("\n[STT] FATAL HARDWARE CRASH: Your Intel Audio Driver just caused a PortAudio Segfault.")
+            print("[STT] Peter successfully isolated the crash and survived!")
         except Exception as e:
-            print(f"[STT] Voice recognition failed: {e}")
-            # FALLBACK
+            print(f"\n[STT] Voice recognition failed: {e}")
+            
+        finally:
+            if os.path.exists(temp_wav):
+                try:
+                    os.remove(temp_wav)
+                except Exception:
+                    pass
+                
+        # FALLBACK IF AUDIO TOTALLY FAILED
+        if not user_input:
             try:
-                user_input = input("\n[UI] ⌨️ Audio failed. Type your command: ").strip()
+                user_input = input("\n[UI] ⌨️ Audio failed. Type your command for Peter: ").strip()
             except EOFError:
                 user_input = ""
                 
@@ -211,6 +203,7 @@ def main():
             ui.set_state("idle")
             return
             
+        ui.set_state("processing")
         listener.is_muted = True 
         try:
             response = llm.generate(user_input, system_prompt=system_prompt)
