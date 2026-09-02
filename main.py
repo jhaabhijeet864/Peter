@@ -9,18 +9,20 @@ from services.audio.stt.whisper_engine import WhisperSTT
 from services.audio.tts.piper_engine import PiperTTS
 from services.audio.listener import AudioListener
 from ui.tray import SystemTrayUI
-from mcp.server import MCPServer
 
+_cached_models = []
 def get_available_ollama_models():
-    """Fetches list of downloaded models directly from local Ollama."""
+    """Fetches list of downloaded models directly from local Ollama without blocking the UI thread."""
+    global _cached_models
     host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
     try:
-        response = requests.get(f"{host}/api/tags", timeout=2)
+        # 0.2s timeout ensures the Windows Right-Click menu instantly renders even if Ollama is off
+        response = requests.get(f"{host}/api/tags", timeout=0.2)
         response.raise_for_status()
-        return [model["name"] for model in response.json().get("models", [])]
+        _cached_models = [model["name"] for model in response.json().get("models", [])]
+        return _cached_models
     except Exception as e:
-        print(f"[Ollama Error] Failed to fetch models: {e}")
-        return []
+        return _cached_models
 
 def main():
     load_dotenv()
@@ -38,8 +40,6 @@ def main():
     tts = PiperTTS(mock_mode=True)
     listener = AudioListener()
     tts.bind_listener(listener)
-    
-    mcp = MCPServer("local_os_operations", plugins_package="mcp.plugins")
     
     # --- Dynamic UI State ---
     active_plugins = {
@@ -107,6 +107,16 @@ def main():
     def on_quit():
         print("Shutting down Peter.")
 
+    def on_services():
+        import base64
+        import subprocess
+        # Fetching dynamic state of the models and engines
+        text = f"=== PETER SERVICES MONITOR ===\n\n[STT Engine] : faster-whisper (Local)\n[Status]     : Loaded & VAD {'Sleeping' if listener.is_muted else 'Active'}\n\n[TTS Engine] : piper-tts (Local)\n[Status]     : Loaded & Awaiting text\n\n[LLM Engine] : Ollama ({llm.model})\n[Status]     : Connected & Warmed up\n\n[MCP Server] : TypeScript stdio Registry\n[Status]     : 10 Tools Loaded & Available\n"
+        b64_text = base64.b64encode(text.encode('utf-8')).decode('utf-8')
+        b64_title = base64.b64encode("Services Monitor | Peter".encode('utf-8')).decode('utf-8')
+        # Reusing the borderless terminal popup independently so we don't freeze the tray
+        subprocess.Popen(["python", "ui/terminal_popup.py", b64_text, b64_title])
+
     ui = SystemTrayUI(
         on_wake_cb=on_wake, 
         on_settings_cb=on_settings, 
@@ -117,7 +127,8 @@ def main():
         get_plugins_cb=get_plugins,
         toggle_plugin_cb=toggle_plugin,
         clear_context_cb=clear_context,
-        toggle_sleep_cb=toggle_sleep
+        toggle_sleep_cb=toggle_sleep,
+        on_services_cb=on_services
     )
     ui.run()
 

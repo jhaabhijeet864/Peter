@@ -6,12 +6,15 @@ class SystemTrayUI:
     def __init__(self, on_wake_cb, on_settings_cb, on_quit_cb, 
                  get_models_cb, set_model_cb, current_model_cb,
                  get_plugins_cb, toggle_plugin_cb,
-                 clear_context_cb, toggle_sleep_cb):
+                 clear_context_cb, toggle_sleep_cb, on_services_cb):
         
         # Base Callbacks
         self.on_wake_cb = on_wake_cb
         self.on_settings_cb = on_settings_cb
         self.on_quit_cb = on_quit_cb
+        self.on_services_cb = on_services_cb
+
+# ... (I will use a smaller replace block to avoid errors) ...
         
         # Dynamic Model Callbacks
         self.get_models_cb = get_models_cb
@@ -119,6 +122,9 @@ class SystemTrayUI:
     def _on_settings(self, icon, item):
         threading.Thread(target=self.on_settings_cb, daemon=True).start()
 
+    def _on_services(self, icon, item):
+        self.on_services_cb()
+
     def _on_quit(self, icon, item):
         self.on_quit_cb()
         if self.icon:
@@ -126,7 +132,7 @@ class SystemTrayUI:
 
     def run(self):
         menu = pystray.Menu(
-            pystray.MenuItem("Wake Peter", self._on_wake),
+            pystray.MenuItem("Wake Peter", self._on_wake, default=True),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Model Selector", pystray.Menu(self._generate_model_menu)),
             pystray.MenuItem("MCP Plugins", pystray.Menu(self._generate_plugin_menu)),
@@ -137,6 +143,7 @@ class SystemTrayUI:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Settings", self._on_settings),
             pystray.MenuItem("Status: Online", lambda: None, enabled=False),
+            pystray.MenuItem("Services Monitor", self._on_services),
             pystray.MenuItem("Quit", self._on_quit)
         )
         self.icon = pystray.Icon("Peter", self._create_image((255, 255, 255)), "Peter AI Butler", menu)

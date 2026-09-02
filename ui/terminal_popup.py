@@ -2,7 +2,7 @@ import tkinter as tk
 import sys
 import base64
 
-def show_popup(text):
+def show_popup(text, window_title="Terminal | Peter System"):
     root = tk.Tk()
     root.overrideredirect(True) # Borderless window
     root.attributes('-topmost', True) # Always on top
@@ -25,7 +25,7 @@ def show_popup(text):
     # Metallic Title Bar
     title = tk.Label(
         root, 
-        text="Terminal | Peter System", 
+        text=window_title, 
         bg='#434b4d', # Gunmetal
         fg='#e0e0e0', # Off-white
         font=("Consolas", 10, "bold"), 
@@ -66,6 +66,8 @@ def show_popup(text):
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        # Decode base64 to prevent terminal quoting issues with complex cmd outputs
         raw_text = base64.b64decode(sys.argv[1]).decode('utf-8')
-        show_popup(raw_text)
+        w_title = "Terminal | Peter System"
+        if len(sys.argv) > 2:
+            w_title = base64.b64decode(sys.argv[2]).decode('utf-8')
+        show_popup(raw_text, w_title)
