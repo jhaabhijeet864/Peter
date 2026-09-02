@@ -259,46 +259,30 @@ def main():
             # Phase 14 TTS FIX: Replaced robot pyttsx3 with hyper-realistic Piper TTS!
             try:
                 from piper.voice import PiperVoice
-                import wave
-                import winsound
-                import os
+                import pyaudio
                 
                 model_path = "services/audio/tts/models/en_US-lessac-medium.onnx"
-                # Risk 4 Fix: UUID File Isolation for TTS
-                temp_tts = f"tts_{session_id}.wav"
                 
                 # Load the ONNX model dynamically
                 voice = PiperVoice.load(model_path)
                 
-                # Synthesize text to WAV
-                with wave.open(temp_tts, "wb") as f:
-                    voice.synthesize_wav(response, f)
-                    
-                # Play explicitly through the selected Windows Speaker!
-                # Winsound ignores device routing, so we manually parse the WAV and pipe it to sounddevice
-                import sounddevice as sd
-                import numpy as np
+                # Stream the TTS directly to the PyAudio stream for zero-latency playback
+                p = pyaudio.PyAudio()
+                speaker_arg = int(selected_speaker_index) if selected_speaker_index is not None else None
                 
-                with wave.open(temp_tts, 'rb') as wf:
-                    framerate = wf.getframerate()
-                    channels = wf.getnchannels()
-                    raw_data = wf.readframes(wf.getnframes())
-                    
-                    audio_data = np.frombuffer(raw_data, dtype=np.int16)
-                    if channels > 1:
-                        audio_data = audio_data.reshape(-1, channels)
-                        
-                    # Target the specific hardware index!
-                    speaker_arg = int(selected_speaker_index) if selected_speaker_index is not None else None
-                    sd.play(audio_data, samplerate=framerate, device=speaker_arg)
-                    sd.wait()
+                stream = p.open(format=pyaudio.paInt16,
+                                channels=1,
+                                rate=voice.config.sample_rate,
+                                output=True,
+                                output_device_index=speaker_arg)
                 
-                # Cleanup
-                if os.path.exists(temp_tts):
-                    try:
-                        os.remove(temp_tts)
-                    except Exception:
-                        pass
+                # Consume the Piper TTS generator and write bytes directly to the audio hardware
+                for chunk in voice.synthesize(response):
+                    stream.write(chunk.audio_int16_bytes)
+                    
+                stream.stop_stream()
+                stream.close()
+                p.terminate()
                         
             except Exception as e:
                 print(f"[TTS] Failed to play Piper audio: {e}")

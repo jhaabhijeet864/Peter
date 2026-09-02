@@ -49,9 +49,6 @@ class SystemTrayUI:
     def set_state(self, new_state: str):
         self.state = new_state
         if self.icon and not self.sleep_mode:
-            import threading
-            if threading.current_thread() != threading.main_thread():
-                return
             if self.state == "listening":
                 # Matrix Green (Active STT)
                 self.icon.icon = self._create_image((32, 194, 14)) 
