@@ -145,6 +145,20 @@ def main():
     def current_speaker():
         return selected_speaker_index
 
+    # --- Auto-Route to Preferred Hardware ---
+    try:
+        for mic in get_mics():
+            if "Noise Buds N1" in mic["name"]:
+                set_mic(mic["index"])
+                break
+                
+        for spk in get_speakers():
+            if "Noise Buds N1" in spk["name"]:
+                set_speaker(spk["index"])
+                break
+    except Exception as e:
+        print(f"[Hardware] Could not auto-route to Noise Buds: {e}")
+
     # --- Core Callbacks ---
     def on_wake():
         if listener.is_muted and not ui.sleep_mode:
