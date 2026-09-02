@@ -126,48 +126,23 @@ def main():
         if listener.is_muted and not ui.sleep_mode:
             return 
             
-        print("\n[UI] Push-to-Talk triggered. Microphone Active (Green).")
+        print("\n[UI] Push-to-Talk triggered. (Green).")
+        print("[DEBUG] Bypassing PyAudio hardware hook due to fatal Windows PortAudio segfault.")
         
-        import speech_recognition as sr
-        r = sr.Recognizer()
-        
-        # Phase 14 FIX: Do not auto-calibrate ambient noise! 
-        r.energy_threshold = 150 
-        r.dynamic_energy_threshold = True
-        r.pause_threshold = 1.0 
-        
+        # FALLBACK TO TERMINAL TYPING TO TEST THE AI ENGINE
         try:
-            # Route to the explicitly selected microphone (or fallback to OS default if None)
-            with sr.Microphone(device_index=selected_mic_index) as source:
-                print("[UI] Speak now... (Auto-detects when you stop speaking)")
-                audio = r.listen(source, timeout=15, phrase_time_limit=20)
-                
-                ui.set_state("processing")
-                print("\n[UI] Processing Intent (Yellow)...")
-                user_input = r.recognize_google(audio)
-                print(f"[STT] Transcribed: '{user_input}'")
-                
-        except sr.WaitTimeoutError:
-            print("[STT] No speech detected (Timeout).")
-            print("[DEBUG] If you spoke, Windows/PyAudio might be listening to a dead default input device (like 'Stereo Mix').")
-            # FALLBACK TO TERMINAL TYPING SO THE USER IS NOT BLOCKED
-            try:
-                user_input = input("\n[UI] ⌨️ Audio input failed. Type your message to Peter (or press Enter to cancel): ").strip()
-            except EOFError:
-                user_input = ""
-                
-            if not user_input:
-                ui.set_state("idle")
-                return
-                
-            ui.set_state("processing")
-            print(f"[STT] Typed: '{user_input}'")
+            user_input = input("\n[UI] ⌨️ Type your command for Peter (e.g., 'What is my battery?'): ").strip()
+        except EOFError:
+            user_input = ""
             
-        except Exception as e:
-            print(f"[STT] Voice recognition failed: {e}")
+        if not user_input:
             ui.set_state("idle")
             return
             
+        ui.set_state("processing")
+        print(f"\n[UI] Processing Intent (Yellow)...")
+        print(f"[STT] Typed: '{user_input}'")
+        
         listener.is_muted = True 
         try:
             response = llm.generate(user_input, system_prompt=system_prompt)
