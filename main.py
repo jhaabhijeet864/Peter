@@ -272,10 +272,7 @@ def main():
                 
                 # Synthesize text to WAV
                 with wave.open(temp_tts, "wb") as f:
-                    f.setnchannels(1)
-                    f.setsampwidth(2) # 16-bit
-                    f.setframerate(voice.config.sample_rate)
-                    voice.synthesize(response, f)
+                    voice.synthesize_wav(response, f)
                     
                 # Play explicitly through the selected Windows Speaker!
                 # Winsound ignores device routing, so we manually parse the WAV and pipe it to sounddevice

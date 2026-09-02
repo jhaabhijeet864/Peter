@@ -10,3 +10,4 @@ torch>=2.0.0
 faster-whisper>=1.0.0
 SpeechRecognition>=3.10.0
 PyAudio>=0.2.13
+piper-tts>=1.2.0
