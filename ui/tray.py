@@ -6,7 +6,9 @@ class SystemTrayUI:
     def __init__(self, on_wake_cb, on_settings_cb, on_quit_cb, 
                  get_models_cb, set_model_cb, current_model_cb,
                  get_plugins_cb, toggle_plugin_cb,
-                 clear_context_cb, toggle_sleep_cb, on_services_cb):
+                 clear_context_cb, toggle_sleep_cb, on_services_cb,
+                 get_mics_cb, set_mic_cb, current_mic_cb,
+                 get_speakers_cb, set_speaker_cb, current_speaker_cb):
         
         # Base Callbacks
         self.on_wake_cb = on_wake_cb
@@ -18,6 +20,15 @@ class SystemTrayUI:
         self.get_models_cb = get_models_cb
         self.set_model_cb = set_model_cb
         self.current_model_cb = current_model_cb
+        
+        # Hardware Audio Device Callbacks
+        self.get_mics_cb = get_mics_cb
+        self.set_mic_cb = set_mic_cb
+        self.current_mic_cb = current_mic_cb
+        
+        self.get_speakers_cb = get_speakers_cb
+        self.set_speaker_cb = set_speaker_cb
+        self.current_speaker_cb = current_speaker_cb
         
         # Advanced Plugin & Quick Action Callbacks
         self.get_plugins_cb = get_plugins_cb
@@ -98,6 +109,57 @@ class SystemTrayUI:
         except Exception:
             return [pystray.MenuItem("Error loading plugins", lambda: None, enabled=False)]
 
+    def _generate_mic_menu(self):
+        try:
+            mics = self.get_mics_cb()
+            if not mics:
+                return [pystray.MenuItem("No microphones found", lambda: None, enabled=False)]
+            
+            items = []
+            current = self.current_mic_cb()
+            for idx, name in enumerate(mics):
+                # Only show first 30 chars to avoid tray bloat
+                display_name = name[:30] + "..." if len(name) > 30 else name
+                
+                def create_cb(mic_index):
+                    return lambda icon, item: self.set_mic_cb(mic_index)
+                    
+                items.append(pystray.MenuItem(
+                    display_name, 
+                    create_cb(idx), 
+                    checked=lambda item, i=idx: current == i,
+                    radio=True
+                ))
+            return items
+        except Exception:
+            return [pystray.MenuItem("Error loading mics", lambda: None, enabled=False)]
+
+    def _generate_speaker_menu(self):
+        try:
+            speakers = self.get_speakers_cb()
+            if not speakers:
+                return [pystray.MenuItem("No speakers found", lambda: None, enabled=False)]
+            
+            items = []
+            current = self.current_speaker_cb()
+            for spk in speakers:
+                idx = spk["index"]
+                name = spk["name"]
+                display_name = name[:30] + "..." if len(name) > 30 else name
+                
+                def create_cb(speaker_index):
+                    return lambda icon, item: self.set_speaker_cb(speaker_index)
+                    
+                items.append(pystray.MenuItem(
+                    display_name, 
+                    create_cb(idx), 
+                    checked=lambda item, i=idx: current == i,
+                    radio=True
+                ))
+            return items
+        except Exception:
+            return [pystray.MenuItem("Error loading speakers", lambda: None, enabled=False)]
+
     def _on_clear_context(self, icon, item):
         self.clear_context_cb()
 
@@ -136,6 +198,8 @@ class SystemTrayUI:
         menu = pystray.Menu(
             pystray.MenuItem("Push-To-Talk (Toggle)", self._on_wake, default=True),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Microphone Selector", pystray.Menu(self._generate_mic_menu)),
+            pystray.MenuItem("Speaker Selector", pystray.Menu(self._generate_speaker_menu)),
             pystray.MenuItem("Model Selector", pystray.Menu(self._generate_model_menu)),
             pystray.MenuItem("MCP Plugins", pystray.Menu(self._generate_plugin_menu)),
             pystray.MenuItem("Quick Actions", pystray.Menu(

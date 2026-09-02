@@ -80,7 +80,48 @@ def main():
         else:
             print("[UI] Action: AWAKE MODE ACTIVE. Microphone active.")
             listener.is_muted = False
+    # --- Audio Hardware State ---
+    selected_mic_index = None
+    selected_speaker_index = None
 
+    def get_mics():
+        import speech_recognition as sr
+        return sr.Microphone.list_microphone_names()
+
+    def set_mic(index):
+        nonlocal selected_mic_index
+        selected_mic_index = index
+        import speech_recognition as sr
+        print(f"\n[Hardware] Microphone routed to: {sr.Microphone.list_microphone_names()[index]}")
+
+    def current_mic():
+        return selected_mic_index
+
+    def get_speakers():
+        import pyaudio
+        p = pyaudio.PyAudio()
+        speakers = []
+        for i in range(p.get_device_count()):
+            info = p.get_device_info_by_index(i)
+            if info["maxOutputChannels"] > 0:
+                # Handle Windows ANSI encoding mess cleanly
+                try:
+                    name = info["name"].encode('cp1252').decode('utf-8')
+                except Exception:
+                    name = info["name"]
+                speakers.append({"index": i, "name": name})
+        p.terminate()
+        return speakers
+
+    def set_speaker(index):
+        nonlocal selected_speaker_index
+        selected_speaker_index = index
+        print(f"\n[Hardware] Speaker routed to device index: {index}")
+
+    def current_speaker():
+        return selected_speaker_index
+
+    # --- Core Callbacks ---
     def on_wake():
         if listener.is_muted and not ui.sleep_mode:
             return 
@@ -90,31 +131,25 @@ def main():
         import speech_recognition as sr
         r = sr.Recognizer()
         
-        # Phase 14 FIX: Do not auto-calibrate ambient noise! If the user speaks immediately 
-        # when clicking the button, their voice gets calibrated as "ambient noise" and muted.
-        # We manually set a highly sensitive volume threshold instead.
+        # Phase 14 FIX: Do not auto-calibrate ambient noise! 
         r.energy_threshold = 150 
         r.dynamic_energy_threshold = True
-        r.pause_threshold = 1.0 # Wait for 1 full second of silence before cutting them off
+        r.pause_threshold = 1.0 
         
         try:
-            with sr.Microphone() as source:
+            # Route to the explicitly selected microphone (or fallback to OS default if None)
+            with sr.Microphone(device_index=selected_mic_index) as source:
                 print("[UI] Speak now... (Auto-detects when you stop speaking)")
-                
-                # Capture the audio from the microphone
                 audio = r.listen(source, timeout=15, phrase_time_limit=20)
                 
-                # Immediately flip to Yellow once speech is captured
                 ui.set_state("processing")
                 print("\n[UI] Processing Intent (Yellow)...")
-                
-                # Run STT via free lightning-fast engine for this test phase
                 user_input = r.recognize_google(audio)
                 print(f"[STT] Transcribed: '{user_input}'")
                 
         except sr.WaitTimeoutError:
             print("[STT] No speech detected (Timeout).")
-            print("[DEBUG] If you spoke, Windows/PyAudio might be listening to a dead default input device (like 'Stereo Mix' or a disconnected webcam).")
+            print("[DEBUG] If you spoke, Windows/PyAudio might be listening to a dead default input device (like 'Stereo Mix').")
             # FALLBACK TO TERMINAL TYPING SO THE USER IS NOT BLOCKED
             try:
                 user_input = input("\n[UI] ⌨️ Audio input failed. Type your message to Peter (or press Enter to cancel): ").strip()
@@ -125,7 +160,6 @@ def main():
                 ui.set_state("idle")
                 return
                 
-            # If they typed a message, manually push the state forward!
             ui.set_state("processing")
             print(f"[STT] Typed: '{user_input}'")
             
@@ -136,17 +170,14 @@ def main():
             
         listener.is_muted = True 
         try:
-            # Inject real transcription (or typed text) into LLM
             response = llm.generate(user_input, system_prompt=system_prompt)
             
             ui.set_state("speaking")
             print(f"\n[Peter ({llm.model})]: {response}\n")
             print("[TTS] Playing audio (Blue)...")
             
-            # Simulate real TTS playback duration so the Blue state is visible
             import time
             time.sleep(3) 
-            # tts.play(response) 
             
         except Exception as e:
             print(f"[CRITICAL ERROR] Execution failed: {e}")
@@ -159,7 +190,7 @@ def main():
         print("Opening Settings...")
 
     def on_quit():
-        print("Shutting down Peter.")
+        print("Shutding down Peter.")
 
     def on_services():
         import base64
@@ -168,7 +199,6 @@ def main():
         text = f"=== PETER SERVICES MONITOR ===\n\n[STT Engine] : faster-whisper (Local)\n[Status]     : Loaded & VAD {'Sleeping' if listener.is_muted else 'Active'}\n\n[TTS Engine] : piper-tts (Local)\n[Status]     : Loaded & Awaiting text\n\n[LLM Engine] : Ollama ({llm.model})\n[Status]     : Connected & Warmed up\n\n[MCP Server] : TypeScript stdio Registry\n[Status]     : 10 Tools Loaded & Available\n"
         b64_text = base64.b64encode(text.encode('utf-8')).decode('utf-8')
         b64_title = base64.b64encode("Services Monitor | Peter".encode('utf-8')).decode('utf-8')
-        # Reusing the borderless terminal popup independently so we don't freeze the tray
         subprocess.Popen(["python", "ui/terminal_popup.py", b64_text, b64_title])
 
     ui = SystemTrayUI(
@@ -182,7 +212,13 @@ def main():
         toggle_plugin_cb=toggle_plugin,
         clear_context_cb=clear_context,
         toggle_sleep_cb=toggle_sleep,
-        on_services_cb=on_services
+        on_services_cb=on_services,
+        get_mics_cb=get_mics,
+        set_mic_cb=set_mic,
+        current_mic_cb=current_mic,
+        get_speakers_cb=get_speakers,
+        set_speaker_cb=set_speaker,
+        current_speaker_cb=current_speaker
     )
     ui.run()
 
