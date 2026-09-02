@@ -11,7 +11,7 @@ export interface MCPTool {
     
     /** The JSON schema defining the arguments the tool expects */
     inputSchema: {
-        type: "object";
+        type: string;
         properties: Record<string, any>;
         required?: string[];
     };

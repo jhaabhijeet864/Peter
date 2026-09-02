@@ -10,6 +10,7 @@ import { AppLauncherTool, ClipboardTool } from "./tools/automation.js";
 import { ScreenshotTool, WebSearchTool } from "./tools/perception.js";
 import { HardwareAwarenessTool } from "./tools/hardware.js";
 import { SafeCLITool } from "./tools/cli.js";
+import { PlaySpotifyTool, PlayYouTubeTool } from "./tools/media.js";
 
 export class PeterMCPServer {
     private server: Server;
@@ -82,5 +83,9 @@ server.registerTool(new SafeCLITool());
 // 4. Perception
 server.registerTool(new ScreenshotTool());
 server.registerTool(new WebSearchTool());
+
+// 5. Media
+server.registerTool(new PlaySpotifyTool());
+server.registerTool(new PlayYouTubeTool());
 
 server.start().catch(console.error);

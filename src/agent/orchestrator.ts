@@ -99,9 +99,9 @@ export class PeterAgent {
                 // Directly return the tool's raw output to satisfy the "Worker" extreme brevity constraint
                 // This skips a redundant second LLM call, making Peter lightning fast.
                 if (result.isError) {
-                    return `Tool error: ${result.content[0].text}`;
+                    return `Tool error: ${(result as any).content[0].text}`;
                 }
-                return result.content[0].text;
+                return (result as any).content[0].text;
             }
             
             // 4. No tool needed, return direct conversational response
