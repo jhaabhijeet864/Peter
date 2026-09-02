@@ -113,9 +113,22 @@ def main():
                 print(f"[STT] Transcribed: '{user_input}'")
                 
         except sr.WaitTimeoutError:
-            print("[STT] No speech detected. Returning to idle.")
-            ui.set_state("idle")
-            return
+            print("[STT] No speech detected (Timeout).")
+            print("[DEBUG] If you spoke, Windows/PyAudio might be listening to a dead default input device (like 'Stereo Mix' or a disconnected webcam).")
+            # FALLBACK TO TERMINAL TYPING SO THE USER IS NOT BLOCKED
+            try:
+                user_input = input("\n[UI] ⌨️ Audio input failed. Type your message to Peter (or press Enter to cancel): ").strip()
+            except EOFError:
+                user_input = ""
+                
+            if not user_input:
+                ui.set_state("idle")
+                return
+                
+            # If they typed a message, manually push the state forward!
+            ui.set_state("processing")
+            print(f"[STT] Typed: '{user_input}'")
+            
         except Exception as e:
             print(f"[STT] Voice recognition failed: {e}")
             ui.set_state("idle")
@@ -123,7 +136,7 @@ def main():
             
         listener.is_muted = True 
         try:
-            # Inject real transcription into LLM
+            # Inject real transcription (or typed text) into LLM
             response = llm.generate(user_input, system_prompt=system_prompt)
             
             ui.set_state("speaking")
