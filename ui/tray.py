@@ -49,6 +49,9 @@ class SystemTrayUI:
     def set_state(self, new_state: str):
         self.state = new_state
         if self.icon and not self.sleep_mode:
+            import threading
+            if threading.current_thread() != threading.main_thread():
+                return
             if self.state == "listening":
                 # Matrix Green (Active STT)
                 self.icon.icon = self._create_image((32, 194, 14)) 
@@ -117,7 +120,9 @@ class SystemTrayUI:
             
             items = []
             current = self.current_mic_cb()
-            for idx, name in enumerate(mics):
+            for mic in mics:
+                idx = mic["index"]
+                name = mic["name"]
                 # Only show first 30 chars to avoid tray bloat
                 display_name = name[:30] + "..." if len(name) > 30 else name
                 
