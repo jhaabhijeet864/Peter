@@ -249,8 +249,24 @@ def main():
                     f.setframerate(voice.config.sample_rate)
                     voice.synthesize(response, f)
                     
-                # Play natively on Windows!
-                winsound.PlaySound(temp_tts, winsound.SND_FILENAME)
+                # Play explicitly through the selected Windows Speaker!
+                # Winsound ignores device routing, so we manually parse the WAV and pipe it to sounddevice
+                import sounddevice as sd
+                import numpy as np
+                
+                with wave.open(temp_tts, 'rb') as wf:
+                    framerate = wf.getframerate()
+                    channels = wf.getnchannels()
+                    raw_data = wf.readframes(wf.getnframes())
+                    
+                    audio_data = np.frombuffer(raw_data, dtype=np.int16)
+                    if channels > 1:
+                        audio_data = audio_data.reshape(-1, channels)
+                        
+                    # Target the specific hardware index!
+                    speaker_arg = int(selected_speaker_index) if selected_speaker_index is not None else None
+                    sd.play(audio_data, samplerate=framerate, device=speaker_arg)
+                    sd.wait()
                 
                 # Cleanup
                 if os.path.exists(temp_tts):
