@@ -90,13 +90,19 @@ def main():
         import speech_recognition as sr
         r = sr.Recognizer()
         
+        # Phase 14 FIX: Do not auto-calibrate ambient noise! If the user speaks immediately 
+        # when clicking the button, their voice gets calibrated as "ambient noise" and muted.
+        # We manually set a highly sensitive volume threshold instead.
+        r.energy_threshold = 150 
+        r.dynamic_energy_threshold = True
+        r.pause_threshold = 1.0 # Wait for 1 full second of silence before cutting them off
+        
         try:
             with sr.Microphone() as source:
-                r.adjust_for_ambient_noise(source, duration=0.2)
                 print("[UI] Speak now... (Auto-detects when you stop speaking)")
                 
                 # Capture the audio from the microphone
-                audio = r.listen(source, timeout=10, phrase_time_limit=15)
+                audio = r.listen(source, timeout=15, phrase_time_limit=20)
                 
                 # Immediately flip to Yellow once speech is captured
                 ui.set_state("processing")
