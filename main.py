@@ -215,8 +215,22 @@ def main():
             print(f"\n[Peter ({llm.model})]: {response}\n")
             print("[TTS] Playing audio (Blue)...")
             
-            import time
-            time.sleep(3) 
+            # Phase 14 TTS FIX: Replaced the mock delay with live native Windows offline speech!
+            try:
+                import pyttsx3
+                # We initialize inside the thread to prevent COM threading crashes on Windows
+                engine = pyttsx3.init()
+                # Speed up the voice slightly so he feels responsive
+                rate = engine.getProperty('rate')
+                engine.setProperty('rate', rate + 25)
+                
+                # Natively play the LLM response through the default speakers
+                engine.say(response)
+                engine.runAndWait()
+            except Exception as e:
+                print(f"[TTS] Failed to play audio: {e}")
+                import time
+                time.sleep(3) 
             
         except Exception as e:
             print(f"[CRITICAL ERROR] Execution failed: {e}")
