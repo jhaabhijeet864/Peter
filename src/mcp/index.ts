@@ -8,6 +8,8 @@ import { PerformanceTool, BatteryTool, ActiveWindowTool } from "./tools/monitori
 import { VolumeTool, WifiToggleTool, PowerPlanTool } from "./tools/toggles.js";
 import { AppLauncherTool, ClipboardTool } from "./tools/automation.js";
 import { ScreenshotTool, WebSearchTool } from "./tools/perception.js";
+import { HardwareAwarenessTool } from "./tools/hardware.js";
+import { SafeCLITool } from "./tools/cli.js";
 
 export class PeterMCPServer {
     private server: Server;

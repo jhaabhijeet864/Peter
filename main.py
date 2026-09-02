@@ -35,9 +35,10 @@ def main():
         with open("peter_system.md", "r") as f:
             system_prompt = f.read()
     
-    # Audio Architecture
-    stt = WhisperSTT(mock_mode=True)
-    tts = PiperTTS(mock_mode=True)
+    # Audio Architecture - MOCK MODE DEACTIVATED
+    # Peter will now use the real microphone and speakers
+    stt = WhisperSTT(mock_mode=False)
+    tts = PiperTTS(mock_mode=False)
     listener = AudioListener()
     tts.bind_listener(listener)
     

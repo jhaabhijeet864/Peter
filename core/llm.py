@@ -19,12 +19,10 @@ class LocalLLM:
         import base64
         
         try:
-            # Handle Windows-specific subprocess quirks for npm/npx
-            npx_cmd = "npx.cmd" if os.name == "nt" else "npx"
-            
             # BUG 2 FIX: Enforce 30s timeout to prevent infinite zombie lockups if TS hangs
+            # PHASE 14 FIX: Swapped npx tsx for native Node to bypass Node 24 ESM crashes
             result = subprocess.run(
-                [npx_cmd, "tsx", "src/agent/cli.ts", prompt, self.model],
+                ["node", "dist/cli.mjs", prompt, self.model],
                 capture_output=True,
                 text=True,
                 check=True,

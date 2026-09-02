@@ -20,13 +20,18 @@ export class PeterAgent {
     /** Connects to the local PeterMCPServer via stdio */
     async connectMCP() {
         if (this.mcpConnected) return;
-        const transport = new StdioClientTransport({
-            command: "npx",
-            args: ["tsx", "./src/mcp/index.ts"]
-        });
-        await this.mcpClient.connect(transport);
-        this.mcpConnected = true;
-        console.log("[TS Agent] Connected to native MCP Registry.");
+        try {
+            const transport = new StdioClientTransport({
+                command: "node",
+                args: ["./dist/mcp.mjs"]
+            });
+            await this.mcpClient.connect(transport);
+            this.mcpConnected = true;
+            console.log("[TS Agent] Connected to native MCP Registry.");
+        } catch (e) {
+            console.error("[TS Agent] FATAL: Failed to connect to MCP Registry via stdio:", e);
+            throw e;
+        }
     }
 
     /**
