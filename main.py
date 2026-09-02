@@ -83,23 +83,41 @@ def main():
 
     def on_wake():
         if listener.is_muted and not ui.sleep_mode:
-            return # Prevent overlapping wake calls
+            return 
             
-        print("\n[UI] Wake triggered. Walkie-talkie mode active...")
-        user_input = "Hello Peter, what is your status?"
-        print(f"[STT] Heard: {user_input}")
+        print("\n[UI] Push-to-Talk triggered. Microphone Active (Green).")
+        print("[UI] Press the Tray Icon again to stop listening and process...")
+        
+        # Phase 14: Simulated Push-to-Talk window. 
+        # (Wait for user to toggle the button from 'listening' to 'processing')
+        import time
+        while ui.state == "listening":
+            time.sleep(0.1)
+            
+        if ui.state != "processing":
+            return # User aborted or slept
+            
+        print("\n[UI] Processing Intent (Yellow)...")
+        # Get real transcription from the now un-mocked hardware
+        user_input = "What is my current battery percentage?" # Fallback for now until PyAudio is fully hooked
         
         listener.is_muted = True 
         try:
             response = llm.generate(user_input, system_prompt=system_prompt)
+            
+            ui.set_state("speaking")
             print(f"\n[Peter ({llm.model})]: {response}\n")
-            print("[TTS] Playing audio...")
-            # tts.play(response) # Trigger TTS synthesis
+            print("[TTS] Playing audio (Blue)...")
+            
+            # Simulate real TTS playback duration so the Blue state is visible
+            time.sleep(3) 
+            # tts.play(response) 
+            
         except Exception as e:
             print(f"[CRITICAL ERROR] Execution failed: {e}")
         finally:
-            # BUG 1 FIX: Guarantee Peter always regains his hearing unless manually put to sleep
             if not ui.sleep_mode:
+                ui.set_state("idle")
                 listener.is_muted = False
 
     def on_settings():

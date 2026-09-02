@@ -13,8 +13,6 @@ class SystemTrayUI:
         self.on_settings_cb = on_settings_cb
         self.on_quit_cb = on_quit_cb
         self.on_services_cb = on_services_cb
-
-# ... (I will use a smaller replace block to avoid errors) ...
         
         # Dynamic Model Callbacks
         self.get_models_cb = get_models_cb
@@ -41,11 +39,14 @@ class SystemTrayUI:
         self.state = new_state
         if self.icon and not self.sleep_mode:
             if self.state == "listening":
-                # Bright Metallic White/Silver (Active listening)
-                self.icon.icon = self._create_image((230, 235, 238)) 
+                # Matrix Green (Active STT)
+                self.icon.icon = self._create_image((32, 194, 14)) 
+            elif self.state == "processing":
+                # Gold/Yellow (LLM Processing)
+                self.icon.icon = self._create_image((255, 204, 0)) 
             elif self.state == "speaking":
-                # Dark Gunmetal/Steel (Processing/Speaking)
-                self.icon.icon = self._create_image((67, 75, 77)) 
+                # Azure Blue (TTS Playing)
+                self.icon.icon = self._create_image((0, 153, 255)) 
             else:
                 # Brushed Silver (Idle)
                 self.icon.icon = self._create_image((176, 181, 185)) 
@@ -112,12 +113,13 @@ class SystemTrayUI:
     def _on_wake(self, icon, item):
         if self.sleep_mode:
             return # Ignore manual wakes if sleeping
-        self.set_state("listening")
-        threading.Thread(target=self._run_wake, daemon=True).start()
-
-    def _run_wake(self):
-        self.on_wake_cb()
-        self.set_state("idle")
+            
+        if self.state == "idle":
+            self.set_state("listening")
+            threading.Thread(target=self.on_wake_cb, daemon=True).start()
+        elif self.state == "listening":
+            self.set_state("processing")
+            # The background wake thread is actively watching for this state change!
 
     def _on_settings(self, icon, item):
         threading.Thread(target=self.on_settings_cb, daemon=True).start()
@@ -132,7 +134,7 @@ class SystemTrayUI:
 
     def run(self):
         menu = pystray.Menu(
-            pystray.MenuItem("Wake Peter", self._on_wake, default=True),
+            pystray.MenuItem("Push-To-Talk (Toggle)", self._on_wake, default=True),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Model Selector", pystray.Menu(self._generate_model_menu)),
             pystray.MenuItem("MCP Plugins", pystray.Menu(self._generate_plugin_menu)),
@@ -142,9 +144,10 @@ class SystemTrayUI:
             )),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Settings", self._on_settings),
-            pystray.MenuItem("Status: Online", lambda: None, enabled=False),
             pystray.MenuItem("Services Monitor", self._on_services),
             pystray.MenuItem("Quit", self._on_quit)
         )
         self.icon = pystray.Icon("Peter", self._create_image((255, 255, 255)), "Peter AI Butler", menu)
+        # Ensure it boots in Silver Idle mode
+        self.set_state("idle")
         self.icon.run()
