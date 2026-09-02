@@ -1,27 +1,23 @@
-# Research: Stack
+# Research: Stack (Polyglot Architecture)
 
 ## Summary
-The optimal 2026 stack for a low-resource Windows local voice companion balancing performance, offline capability, and low latency.
+The optimal 2026 stack for Peter utilizes a **Hybrid Polyglot Architecture**, leveraging the strengths of both TypeScript and Python.
 
-## 1. Local Processing (Brain)
-*   **Ollama (API)**: Manages local inference.
-*   **Model**: `phi3:mini` (4-bit quantized) - optimized for low RAM footprint and fast conversational reasoning.
+## 1. Agentic Core & Orchestration (TypeScript)
+*   **Why TypeScript?** The modern ecosystem for autonomous agents and the Model Context Protocol (MCP) is overwhelmingly TypeScript-first. It provides superior static typing for complex LLM schemas.
+*   **Engine**: Node.js / `tsx`
+*   **MCP SDK**: `@modelcontextprotocol/sdk` for exposing and consuming dynamic tools.
 
-## 2. Audio Pipeline
-*   **Voice Activity Detection (VAD)**: `silero-vad` - extremely lightweight, prevents `faster-whisper` from running constantly and spiking CPU.
-*   **STT**: `faster-whisper` (Tiny model) - high transcription accuracy on CPU.
-*   **TTS**: `piper-tts` - minimal latency, phoneme-based, significantly faster than edge/vosk on CPU.
-*   **Audio I/O**: `sounddevice` & `numpy` - low-level, non-blocking audio stream capture and playback.
+## 2. Hardware & Audio Pipeline (Python)
+*   **Why Python?** TypeScript/Node.js struggles natively with low-latency hardware streams and native Windows UI bindings without heavy C++ recompilation. Python handles this flawlessly.
+*   **Voice Activity Detection (VAD)**: `silero-vad`
+*   **STT**: `faster-whisper`
+*   **TTS**: `piper-tts`
+*   **Audio I/O**: `sounddevice`
+*   **System UI**: `pystray` (Windows System Tray)
 
-## 3. Windows Native Integration
-*   **System UI**: `pystray` + `Pillow` for the system tray icon and state management.
-*   **System Controls**: `psutil` (performance), `pywin32` / `wmi` (power saving, bluetooth, Wi-Fi toggling).
-*   **Screen Perception**: `mss` - fastest cross-platform Python screenshot library.
+## 3. Communication Bridge
+*   The Python hardware layer (Listener/Speaker) will communicate with the TypeScript Agent Core via local Inter-Process Communication (IPC) or `stdio` streams (the standard for MCP). 
 
-## 4. Architecture Foundation
-*   **Asynchronous Engine**: `asyncio` - critical for managing the queue of voice notes, audio streams, and LLM API calls without freezing the tray UI.
-*   **Extension Protocol**: Model Context Protocol (MCP) using Python's `importlib` and `inspect` for dynamic capability loading.
-
-## Excluded & Why
-*   **PyAudio**: Often requires complex C-bindings and build tools on Windows; `sounddevice` is cleaner via pip.
-*   **Vosk / Edge TTS**: Excluded per user requirements (Piper is more controllable locally and doesn't rely on cloud like Edge).
+## 4. Local Processing (Brain)
+*   **Ollama (API)**: Manages local inference (`phi3:mini`).
