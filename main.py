@@ -215,20 +215,35 @@ def main():
             print(f"\n[Peter ({llm.model})]: {response}\n")
             print("[TTS] Playing audio (Blue)...")
             
-            # Phase 14 TTS FIX: Replaced the mock delay with live native Windows offline speech!
+            # Phase 14 TTS FIX: Replaced robot pyttsx3 with hyper-realistic Piper TTS!
             try:
-                import pyttsx3
-                # We initialize inside the thread to prevent COM threading crashes on Windows
-                engine = pyttsx3.init()
-                # Speed up the voice slightly so he feels responsive
-                rate = engine.getProperty('rate')
-                engine.setProperty('rate', rate + 25)
+                from piper.voice import PiperVoice
+                import wave
+                import winsound
+                import os
                 
-                # Natively play the LLM response through the default speakers
-                engine.say(response)
-                engine.runAndWait()
+                model_path = "services/audio/tts/models/en_US-lessac-medium.onnx"
+                temp_tts = "temp_tts.wav"
+                
+                # Load the ONNX model dynamically
+                voice = PiperVoice.load(model_path)
+                
+                # Synthesize text to WAV
+                with wave.open(temp_tts, "wb") as f:
+                    voice.synthesize(response, f)
+                    
+                # Play natively on Windows!
+                winsound.PlaySound(temp_tts, winsound.SND_FILENAME)
+                
+                # Cleanup
+                if os.path.exists(temp_tts):
+                    try:
+                        os.remove(temp_tts)
+                    except Exception:
+                        pass
+                        
             except Exception as e:
-                print(f"[TTS] Failed to play audio: {e}")
+                print(f"[TTS] Failed to play Piper audio: {e}")
                 import time
                 time.sleep(3) 
             
