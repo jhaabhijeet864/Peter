@@ -39,28 +39,54 @@ class SystemTrayUI:
         self.icon = None
         self.state = "idle"
         self.sleep_mode = False
+        
+        self.base_icon = None
+        try:
+            import os
+            icon_path = os.path.abspath("assets/icons/Peter.ico")
+            if os.path.exists(icon_path):
+                self.base_icon = Image.open(icon_path).convert("RGBA")
+        except Exception as e:
+            print(f"[UI] Failed to load custom icon: {e}")
 
     def _create_image(self, color):
-        image = Image.new('RGB', (64, 64), color=(0, 0, 0))
-        draw = ImageDraw.Draw(image)
-        draw.ellipse((16, 16, 48, 48), fill=color)
-        return image
+        if self.base_icon is not None:
+            img = self.base_icon.copy()
+            if color is not None:
+                draw = ImageDraw.Draw(img)
+                w, h = img.size
+                # Draw a status dot in the bottom right corner
+                dot_size = int(w * 0.35)
+                pad = int(w * 0.05)
+                x0, y0 = w - dot_size - pad, h - dot_size - pad
+                x1, y1 = w - pad, h - pad
+                
+                # Dark outline for visibility
+                draw.ellipse((x0-2, y0-2, x1+2, y1+2), fill=(30, 30, 30, 255))
+                draw.ellipse((x0, y0, x1, y1), fill=color)
+            return img
+        else:
+            # Fallback to the old colored circle
+            image = Image.new('RGBA', (64, 64), color=(0, 0, 0, 0))
+            if color is not None:
+                draw = ImageDraw.Draw(image)
+                draw.ellipse((16, 16, 48, 48), fill=color)
+            else:
+                draw = ImageDraw.Draw(image)
+                draw.ellipse((16, 16, 48, 48), fill=(176, 181, 185, 255)) # Silver Idle
+            return image
 
     def set_state(self, new_state: str):
         self.state = new_state
         if self.icon and not self.sleep_mode:
             if self.state == "listening":
-                # Matrix Green (Active STT)
-                self.icon.icon = self._create_image((32, 194, 14)) 
+                self.icon.icon = self._create_image((32, 194, 14, 255)) 
             elif self.state == "processing":
-                # Gold/Yellow (LLM Processing)
-                self.icon.icon = self._create_image((255, 204, 0)) 
+                self.icon.icon = self._create_image((255, 204, 0, 255)) 
             elif self.state == "speaking":
-                # Azure Blue (TTS Playing)
-                self.icon.icon = self._create_image((0, 153, 255)) 
+                self.icon.icon = self._create_image((0, 153, 255, 255)) 
             else:
-                # Brushed Silver (Idle)
-                self.icon.icon = self._create_image((176, 181, 185)) 
+                self.icon.icon = self._create_image(None)
 
     def _generate_model_menu(self):
         try:
@@ -170,7 +196,7 @@ class SystemTrayUI:
         self.toggle_sleep_cb(self.sleep_mode)
         if self.sleep_mode:
             # Deep Obsidian / Dark Iron for Sleep Mode
-            self.icon.icon = self._create_image((26, 28, 29)) 
+            self.icon.icon = self._create_image((26, 28, 29, 255)) 
         else:
             self.set_state("idle")
 
@@ -216,7 +242,7 @@ class SystemTrayUI:
             pystray.MenuItem("Services Monitor", self._on_services),
             pystray.MenuItem("Quit", self._on_quit)
         )
-        self.icon = pystray.Icon("Peter", self._create_image((255, 255, 255)), "Peter AI Butler", menu)
+        self.icon = pystray.Icon("Peter", self._create_image(None), "Peter AI Butler", menu)
         # Ensure it boots in Silver Idle mode
         self.set_state("idle")
         self.icon.run()
