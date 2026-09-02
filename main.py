@@ -271,7 +271,27 @@ def main():
                                     output=True,
                                     output_device_index=speaker_arg)
                     
-                    for chunk in voice.synthesize(response):
+                    import re
+                    
+                    # Clean up LLM markdown and JSON formatting so the TTS sounds natural
+                    spoken_response = response
+                    # Remove code blocks entirely (these are usually silent tool calls)
+                    spoken_response = re.sub(r'```.*?```', '', spoken_response, flags=re.DOTALL)
+                    # Remove inline code
+                    spoken_response = re.sub(r'`.*?`', '', spoken_response)
+                    # Remove markdown formatting characters
+                    spoken_response = spoken_response.replace('*', '').replace('#', '')
+                    # Replace underscores with spaces for natural reading
+                    spoken_response = spoken_response.replace('_', ' ')
+                    # Remove brackets and braces (JSON formatting)
+                    spoken_response = re.sub(r'[{}[\]"]', '', spoken_response)
+                    
+                    spoken_response = spoken_response.strip()
+                    # If the response was purely a tool call/code block, give a silent acknowledgment
+                    if not spoken_response:
+                        spoken_response = "Task executed."
+                        
+                    for chunk in voice.synthesize(spoken_response):
                         if ui.state != "speaking":
                             print("\n[TTS] Playback interrupted by user.")
                             break
