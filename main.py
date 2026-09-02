@@ -164,8 +164,9 @@ def main():
         user_input = ""
         
         try:
-            # Launch isolated hardware process
-            subprocess.run(["python", "services/audio/stt/recorder.py", temp_wav, "6"], check=True)
+            # Launch isolated hardware process with explicitly selected microphone index!
+            mic_arg = str(selected_mic_index) if selected_mic_index is not None else "None"
+            subprocess.run(["python", "services/audio/stt/recorder.py", temp_wav, "6", mic_arg], check=True)
             
             ui.set_state("processing")
             print("\n[UI] Processing Intent (Yellow)...")
@@ -182,6 +183,8 @@ def main():
             # THIS CATCHES THE FATAL C-SEGFAULT!
             print("\n[STT] FATAL HARDWARE CRASH: Your Intel Audio Driver just caused a PortAudio Segfault.")
             print("[STT] Peter successfully isolated the crash and survived!")
+        except sr.UnknownValueError:
+            print("\n[STT] The recording was completely silent. The selected microphone did not pick up your voice.")
         except Exception as e:
             print(f"\n[STT] Voice recognition failed: {e}")
             
