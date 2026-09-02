@@ -3,10 +3,12 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { MCPTool } from "./tools/base.js";
 
-/**
- * Scalable MCP Tool Registry.
- * Handles dynamic tool routing, schema exposure, and execution limits.
- */
+// Import all 10 tools across the 4 categories
+import { PerformanceTool, BatteryTool, ActiveWindowTool } from "./tools/monitoring.js";
+import { VolumeTool, WifiToggleTool, PowerPlanTool } from "./tools/toggles.js";
+import { AppLauncherTool, ClipboardTool } from "./tools/automation.js";
+import { ScreenshotTool, WebSearchTool } from "./tools/perception.js";
+
 export class PeterMCPServer {
     private server: Server;
     private tools: Map<string, MCPTool> = new Map();
@@ -19,16 +21,12 @@ export class PeterMCPServer {
         this.setupHandlers();
     }
 
-    /** 
-     * Dynamically registers a tool. This allows the System Tray UI to 
-     * hot-swap tools on and off by dropping them from this registry.
-     */
     public registerTool(tool: MCPTool) {
         this.tools.set(tool.name, tool);
+        console.log(`[MCP Registry] Registered tool: ${tool.name}`);
     }
 
     private setupHandlers() {
-        // Exposes the active tool schemas to the Agentic Orchestrator
         this.server.setRequestHandler(ListToolsRequestSchema, async () => {
             return {
                 tools: Array.from(this.tools.values()).map(t => ({
@@ -39,23 +37,16 @@ export class PeterMCPServer {
             };
         });
 
-        // Routes the LLM's tool request to the underlying native code
         this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const tool = this.tools.get(request.params.name);
             if (!tool) {
-                throw new Error(`[MCP] FATAL: Tool ${request.params.name} is not registered or disabled.`);
+                throw new Error(`[MCP] FATAL: Tool ${request.params.name} is not registered.`);
             }
-            
             try {
                 const result = await tool.execute(request.params.arguments || {});
-                return {
-                    content: [{ type: "text", text: result }]
-                };
+                return { content: [{ type: "text", text: result }] };
             } catch (error: any) {
-                return {
-                    content: [{ type: "text", text: `Error: ${error.message}` }],
-                    isError: true
-                };
+                return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
             }
         });
     }
@@ -67,6 +58,25 @@ export class PeterMCPServer {
     }
 }
 
-// Scaffold execution (Tools will be injected dynamically by the orchestrator)
+// Scaffold execution and register ALL 10 tools!
 const server = new PeterMCPServer();
+
+// 1. Monitoring
+server.registerTool(new PerformanceTool());
+server.registerTool(new BatteryTool());
+server.registerTool(new ActiveWindowTool());
+
+// 2. Toggles
+server.registerTool(new VolumeTool());
+server.registerTool(new WifiToggleTool());
+server.registerTool(new PowerPlanTool());
+
+// 3. Automation
+server.registerTool(new AppLauncherTool());
+server.registerTool(new ClipboardTool());
+
+// 4. Perception
+server.registerTool(new ScreenshotTool());
+server.registerTool(new WebSearchTool());
+
 server.start().catch(console.error);
