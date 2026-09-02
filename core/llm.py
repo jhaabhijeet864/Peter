@@ -20,18 +20,26 @@ class LocalLLM:
         import base64
         
         try:
-            # BUG 2 FIX: Enforce 30s timeout to prevent infinite zombie lockups if TS hangs
-            # PHASE 14 FIX: Swapped npx tsx for native Node to bypass Node 24 ESM crashes
-            result = subprocess.run(
+            # Risk 5 Fix: Process-Tree Reaping to prevent Zombie MCP Node servers
+            proc = subprocess.Popen(
                 ["node", "dist/cli.mjs", prompt, self.model],
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=30 
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
             )
             
+            try:
+                stdout, stderr = proc.communicate(timeout=30)
+                result_stdout = stdout
+            except subprocess.TimeoutExpired:
+                print(f"[Python Bridge] Orchestrator hung for 30s. Triggering Process Tree Kill on PID {proc.pid}.")
+                # Native Windows process tree kill guarantees child Node processes/TCP sockets die
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
+                proc.communicate() # flush pipes
+                return "My typescript core experienced a 30-second processing timeout and was violently forcefully rebooted."
+            
             # Parse the strict response marker to ignore TS console.log spam
-            output = result.stdout
+            output = result_stdout
             if "__PETER_RESPONSE__:" in output:
                 output = output.split("__PETER_RESPONSE__:")[1].strip()
             else:

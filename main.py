@@ -145,19 +145,21 @@ def main():
     def current_speaker():
         return selected_speaker_index
 
-    # --- Auto-Route to Preferred Hardware ---
-    try:
-        for mic in get_mics():
-            if "Noise Buds N1" in mic["name"]:
-                set_mic(mic["index"])
-                break
-                
-        for spk in get_speakers():
-            if "Noise Buds N1" in spk["name"]:
-                set_speaker(spk["index"])
-                break
-    except Exception as e:
-        print(f"[Hardware] Could not auto-route to Noise Buds: {e}")
+    def refresh_audio_devices():
+        try:
+            for mic in get_mics():
+                if "Noise Buds N1" in mic["name"]:
+                    set_mic(mic["index"])
+                    break
+            for spk in get_speakers():
+                if "Noise Buds N1" in spk["name"]:
+                    set_speaker(spk["index"])
+                    break
+        except Exception as e:
+            print(f"[Hardware] Could not auto-route: {e}")
+
+    # Initial boot route
+    refresh_audio_devices()
 
     # --- Core Callbacks ---
     def on_wake():
@@ -165,27 +167,47 @@ def main():
             return 
             
         print("\n[UI] Push-to-Talk triggered. (Green).")
-        print("[UI] Speak your command now... (Recording for 6 seconds)")
         
-        # Phase 14 FIX: PortAudio is fundamentally segfaulting on your Intel Driver.
-        # By running the microphone capture in a completely isolated sub-process, 
-        # a C-level hardware crash will NOT kill Peter. It will just safely fallback!
+        # Risk 1 Fix: Refresh hardware indices dynamically to survive USB hot-plugging
+        refresh_audio_devices()
+        
+        print("[UI] Speak your command now... (Click again to stop)")
+        
         import subprocess
         import os
         import speech_recognition as sr
+        import time
+        import uuid
         
-        temp_wav = "temp_voice.wav"
+        # Risk 4 Fix: UUID File Buffer Isolation to prevent [WinError 32] Concurrency Locks
+        session_id = uuid.uuid4().hex
+        temp_wav = f"voice_{session_id}.wav"
+        signal_file = f"signal_{session_id}.active"
         user_input = ""
         
+        # Create signal file to allow early termination
+        open(signal_file, 'w').close()
+        
         try:
-            # Launch isolated hardware process with explicitly selected microphone index!
+            # Risk 3 Fix: Asynchronous Recording Termination via InputStream and signal file polling
             mic_arg = str(selected_mic_index) if selected_mic_index is not None else "None"
-            subprocess.run(["python", "services/audio/stt/recorder.py", temp_wav, "6", mic_arg], check=True)
+            # Launch the sandbox using Popen (non-blocking). Pass 15 second max limit.
+            proc = subprocess.Popen(["python", "services/audio/stt/recorder.py", temp_wav, "15", mic_arg, signal_file])
+            
+            # Watch the UI state thread. If user clicks icon again, it flips to "processing"
+            while ui.state == "listening" and proc.poll() is None:
+                time.sleep(0.1)
+                
+            # If the user clicked to stop, the state changed! Delete the signal file to cleanly terminate the recorder!
+            if os.path.exists(signal_file):
+                os.remove(signal_file)
+                
+            proc.wait(timeout=2) # Wait for it to cleanly flush the WAV file
             
             ui.set_state("processing")
             print("\n[UI] Processing Intent (Yellow)...")
             
-            # Transcribe the WAV file safely without touching PyAudio/PortAudio
+            # Transcribe the dynamically isolated WAV file safely
             r = sr.Recognizer()
             with sr.AudioFile(temp_wav) as source:
                 audio = r.record(source)
@@ -194,18 +216,26 @@ def main():
             print(f"[STT] Transcribed: '{user_input}'")
             
         except subprocess.CalledProcessError:
-            # THIS CATCHES THE FATAL C-SEGFAULT!
-            print("\n[STT] FATAL HARDWARE CRASH: Your Intel Audio Driver just caused a PortAudio Segfault.")
+            print("\n[STT] FATAL HARDWARE CRASH: Your Audio Driver just caused a PortAudio Segfault.")
             print("[STT] Peter successfully isolated the crash and survived!")
         except sr.UnknownValueError:
             print("\n[STT] The recording was completely silent. The selected microphone did not pick up your voice.")
         except Exception as e:
-            print(f"\n[STT] Voice recognition failed: {e}")
+            # Risk 2 Fix: Catch Exclusive Lock crashes gracefully
+            if "UnanticipatedHostError" in str(e) or "DeviceUnavailable" in str(e):
+                print(f"\n[STT] EXCLUSIVE LOCK DETECTED: Another app (like Discord) is locking your microphone. Please disable Exclusive Mode in Windows Sound Settings.")
+            else:
+                print(f"\n[STT] Voice recognition failed: {e}")
             
         finally:
             if os.path.exists(temp_wav):
                 try:
                     os.remove(temp_wav)
+                except Exception:
+                    pass
+            if os.path.exists(signal_file):
+                try:
+                    os.remove(signal_file)
                 except Exception:
                     pass
                 
@@ -237,7 +267,8 @@ def main():
                 import os
                 
                 model_path = "services/audio/tts/models/en_US-lessac-medium.onnx"
-                temp_tts = "temp_tts.wav"
+                # Risk 4 Fix: UUID File Isolation for TTS
+                temp_tts = f"tts_{session_id}.wav"
                 
                 # Load the ONNX model dynamically
                 voice = PiperVoice.load(model_path)
