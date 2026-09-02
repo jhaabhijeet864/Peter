@@ -16,9 +16,11 @@ class LocalLLM:
         Ensures Peter can execute MCP tools before speaking.
         """
         try:
-            # We use npx tsx to execute the typescript file dynamically
+            # Handle Windows-specific subprocess quirks for npm/npx
+            npx_cmd = "npx.cmd" if os.name == "nt" else "npx"
+            
             result = subprocess.run(
-                ["npx", "tsx", "src/agent/cli.ts", prompt, self.model],
+                [npx_cmd, "tsx", "src/agent/cli.ts", prompt, self.model],
                 capture_output=True,
                 text=True,
                 check=True
@@ -34,3 +36,5 @@ class LocalLLM:
         except subprocess.CalledProcessError as e:
             print(f"[Python Bridge Error] TS Process Failed:\n{e.stderr}")
             return "My typescript core experienced a critical fault."
+        except FileNotFoundError:
+            return "Critical Error: Node.js/npx not found in the system PATH."
