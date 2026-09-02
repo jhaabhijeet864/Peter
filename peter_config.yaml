@@ -1,0 +1,10 @@
+agent_name: "Peter"
+backend_provider: "local_inference"
+model_target: "phi-3-mini-4k-instruct-q4"
+context_limit: 4096
+mcp_endpoints:
+  - "windows_system_tray_node"
+  - "local_os_operations"
+audio_pipeline:
+  stt: "faster-whisper-tiny.en"
+  tts: "piper-tts (en_US-lessac-medium)"
