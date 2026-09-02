@@ -244,6 +244,9 @@ def main():
                 
                 # Synthesize text to WAV
                 with wave.open(temp_tts, "wb") as f:
+                    f.setnchannels(1)
+                    f.setsampwidth(2) # 16-bit
+                    f.setframerate(voice.config.sample_rate)
                     voice.synthesize(response, f)
                     
                 # Play natively on Windows!
