@@ -45,3 +45,16 @@ This project uses Fine granularity (many focused phases) and enforces Test-Drive
 ## Phase 11: End-to-End Polish
 - **Goal**: Final integration and latency optimization.
 - **Deliverables**: Comprehensive E2E tests, packaging, and final documentation.
+
+## Phase 12: Terminal UI Expansion & Safe CLI Execution
+- **Goal**: Allow Peter to execute safe, informative commands (like a native terminal) and display the live output visually without cluttering the screen.
+- **Deliverables**: 
+  - A "Safe CLI" MCP Tool that executes restricted, non-destructive read-only PowerShell commands.
+  - A custom, vertically-expanding UI overlay attached to the System Tray to stream command outputs (since native Windows tray menus are static).
+  
+## Phase 13: Architectural Stress-Testing & AI-Bug Debugging
+- **Goal**: Comprehensive E2E deep dive to hunt, diagnose, and destroy vulnerabilities typical of AI-generated architecture.
+- **Deliverables**: 
+  - Stress testing the Python-to-TypeScript IPC bridge for dropped packets or desyncs.
+  - Race condition auditing between the async audio queue (VAD) and the TTS muting lock.
+  - Memory leak hunting for long-running child processes (Node.js/npx) and unclosed file handles.

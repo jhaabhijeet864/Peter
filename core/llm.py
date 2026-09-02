@@ -15,6 +15,9 @@ class LocalLLM:
         Executes the TypeScript brain via IPC (subprocess).
         Ensures Peter can execute MCP tools before speaking.
         """
+        import re
+        import base64
+        
         try:
             # Handle Windows-specific subprocess quirks for npm/npx
             npx_cmd = "npx.cmd" if os.name == "nt" else "npx"
@@ -29,9 +32,25 @@ class LocalLLM:
             # Parse the strict response marker to ignore TS console.log spam
             output = result.stdout
             if "__PETER_RESPONSE__:" in output:
-                return output.split("__PETER_RESPONSE__:")[1].strip()
-            
-            return output.strip()
+                output = output.split("__PETER_RESPONSE__:")[1].strip()
+            else:
+                output = output.strip()
+                
+            # --- PHASE 12: TERMINAL UI INTERCEPTION ---
+            if "<TERMINAL_OUTPUT>" in output:
+                pattern = r"<TERMINAL_OUTPUT>(.*?)</TERMINAL_OUTPUT>"
+                matches = re.findall(pattern, output, re.DOTALL)
+                
+                for match in matches:
+                    # Encode to base64 so it safely passes through CLI args without escaping nightmares
+                    b64_text = base64.b64encode(match.strip().encode('utf-8')).decode('utf-8')
+                    # Detached subprocess to run the Tkinter UI without blocking Python audio
+                    subprocess.Popen(["python", "ui/terminal_popup.py", b64_text])
+                
+                # Replace the massive raw terminal output with a tiny TTS confirmation
+                output = re.sub(pattern, "I have executed the command and displayed the terminal output on your screen.", output, flags=re.DOTALL)
+                
+            return output
             
         except subprocess.CalledProcessError as e:
             print(f"[Python Bridge Error] TS Process Failed:\n{e.stderr}")

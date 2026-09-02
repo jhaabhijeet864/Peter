@@ -72,9 +72,10 @@ server.registerTool(new VolumeTool());
 server.registerTool(new WifiToggleTool());
 server.registerTool(new PowerPlanTool());
 
-// 3. Automation
+// 3. Automation & CLI
 server.registerTool(new AppLauncherTool());
 server.registerTool(new ClipboardTool());
+server.registerTool(new SafeCLITool());
 
 // 4. Perception
 server.registerTool(new ScreenshotTool());
