@@ -182,8 +182,8 @@ class SystemTrayUI:
             self.set_state("listening")
             threading.Thread(target=self.on_wake_cb, daemon=True).start()
         elif self.state == "listening":
-            self.set_state("processing")
-            # The background wake thread is actively watching for this state change!
+            self.set_state("idle")
+            # The background autonomous thread watches for this state change to exit!
         elif self.state == "speaking":
             self.set_state("idle")
             # The background TTS streaming loop watches for this state change to abort!

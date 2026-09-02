@@ -166,138 +166,136 @@ def main():
         if listener.is_muted and not ui.sleep_mode:
             return 
             
-        print("\n[UI] Push-to-Talk triggered. (Green).")
-        
-        print("[UI] Speak your command now... (Click again to stop)")
-        
-        import subprocess
-        import os
-        import speech_recognition as sr
-        import time
-        import uuid
-        
-        # Risk 4 Fix: UUID File Buffer Isolation to prevent [WinError 32] Concurrency Locks
-        session_id = uuid.uuid4().hex
-        temp_wav = f"voice_{session_id}.wav"
-        signal_file = f"signal_{session_id}.active"
-        user_input = ""
-        
-        # Create signal file to allow early termination
-        open(signal_file, 'w').close()
-        
+        print("[TTS] Warming up voice engine...")
         try:
-            # Risk 3 Fix: Asynchronous Recording Termination via InputStream and signal file polling
-            mic_arg = str(selected_mic_index) if selected_mic_index is not None else "None"
-            # Launch the sandbox using Popen (non-blocking). Pass 15 second max limit.
-            proc = subprocess.Popen(["python", "services/audio/stt/recorder.py", temp_wav, "15", mic_arg, signal_file])
-            
-            # Watch the UI state thread. If user clicks icon again, it flips to "processing"
-            while ui.state == "listening" and proc.poll() is None:
-                time.sleep(0.1)
-                
-            # If the user clicked to stop, the state changed! Delete the signal file to cleanly terminate the recorder!
-            if os.path.exists(signal_file):
-                os.remove(signal_file)
-                
-            proc.wait(timeout=2) # Wait for it to cleanly flush the WAV file
-            
-            ui.set_state("processing")
-            print("\n[UI] Processing Intent (Yellow)...")
-            
-            # Transcribe the dynamically isolated WAV file safely
-            r = sr.Recognizer()
-            with sr.AudioFile(temp_wav) as source:
-                audio = r.record(source)
-                
-            user_input = r.recognize_google(audio)
-            print(f"[STT] Transcribed: '{user_input}'")
-            
-        except subprocess.CalledProcessError:
-            print("\n[STT] FATAL HARDWARE CRASH: Your Audio Driver just caused a PortAudio Segfault.")
-            print("[STT] Peter successfully isolated the crash and survived!")
-        except sr.UnknownValueError:
-            print("\n[STT] The recording was completely silent. The selected microphone did not pick up your voice.")
+            from piper.voice import PiperVoice
+            import pyaudio
+            model_path = "services/audio/tts/models/en_US-lessac-medium.onnx"
+            voice = PiperVoice.load(model_path)
         except Exception as e:
-            # Risk 2 Fix: Catch Exclusive Lock crashes gracefully
-            if "UnanticipatedHostError" in str(e) or "DeviceUnavailable" in str(e):
-                print(f"\n[STT] EXCLUSIVE LOCK DETECTED: Another app (like Discord) is locking your microphone. Please disable Exclusive Mode in Windows Sound Settings.")
-            else:
-                print(f"\n[STT] Voice recognition failed: {e}")
-            
-        finally:
-            if os.path.exists(temp_wav):
-                try:
-                    os.remove(temp_wav)
-                except Exception:
-                    pass
-            if os.path.exists(signal_file):
-                try:
-                    os.remove(signal_file)
-                except Exception:
-                    pass
-                
-        # FALLBACK IF AUDIO TOTALLY FAILED
-        if not user_input:
-            try:
-                user_input = input("\n[UI] ⌨️ Audio failed. Type your command for Peter: ").strip()
-            except EOFError:
-                user_input = ""
-                
-        if not user_input:
-            ui.set_state("idle")
+            print(f"[TTS] Failed to load voice engine: {e}")
             return
             
-        ui.set_state("processing")
-        listener.is_muted = True 
-        try:
-            response = llm.generate(user_input, system_prompt=system_prompt)
+        while True:
+            ui.set_state("listening")
+            print("\n[UI] Autonomous Mode Active. (Green).")
+            print("[UI] Listening for your voice... (Click tray icon to stop)")
             
-            ui.set_state("speaking")
-            print(f"\n[Peter ({llm.model})]: {response}\n")
-            print("[TTS] Playing audio (Blue)...")
+            import subprocess
+            import os
+            import speech_recognition as sr
+            import time
+            import uuid
             
-            # Phase 14 TTS FIX: Replaced robot pyttsx3 with hyper-realistic Piper TTS!
+            session_id = uuid.uuid4().hex
+            temp_wav = f"voice_{session_id}.wav"
+            signal_file = f"signal_{session_id}.active"
+            user_input = ""
+            
+            open(signal_file, 'w').close()
+            
             try:
-                from piper.voice import PiperVoice
-                import pyaudio
+                mic_arg = str(selected_mic_index) if selected_mic_index is not None else "None"
+                proc = subprocess.Popen(["python", "services/audio/stt/recorder.py", temp_wav, "15", mic_arg, signal_file])
                 
-                model_path = "services/audio/tts/models/en_US-lessac-medium.onnx"
-                
-                # Load the ONNX model dynamically
-                voice = PiperVoice.load(model_path)
-                
-                # Stream the TTS directly to the PyAudio stream for zero-latency playback
-                p = pyaudio.PyAudio()
-                speaker_arg = int(selected_speaker_index) if selected_speaker_index is not None else None
-                
-                stream = p.open(format=pyaudio.paInt16,
-                                channels=1,
-                                rate=voice.config.sample_rate,
-                                output=True,
-                                output_device_index=speaker_arg)
-                
-                # Consume the Piper TTS generator and write bytes directly to the audio hardware
-                for chunk in voice.synthesize(response):
-                    if ui.state != "speaking":
-                        print("\n[TTS] Playback interrupted by user.")
-                        break
-                    stream.write(chunk.audio_int16_bytes)
+                while ui.state == "listening" and proc.poll() is None:
+                    time.sleep(0.1)
                     
-                stream.stop_stream()
-                stream.close()
-                p.terminate()
-                        
+                if os.path.exists(signal_file):
+                    os.remove(signal_file)
+                    
+                proc.wait(timeout=2) 
+                
+                if ui.state != "listening":
+                    print("\n[UI] Autonomous mode aborted by user.")
+                    break
+                
+                ui.set_state("processing")
+                print("\n[UI] Processing Intent (Yellow)...")
+                
+                r = sr.Recognizer()
+                with sr.AudioFile(temp_wav) as source:
+                    audio = r.record(source)
+                    
+                user_input = r.recognize_google(audio)
+                print(f"[STT] Transcribed: '{user_input}'")
+                
+            except subprocess.CalledProcessError:
+                print("\n[STT] FATAL HARDWARE CRASH: Your Audio Driver just caused a PortAudio Segfault.")
+                print("[STT] Peter successfully isolated the crash and survived!")
+            except sr.UnknownValueError:
+                print("\n[STT] The recording was completely silent.")
             except Exception as e:
-                print(f"[TTS] Failed to play Piper audio: {e}")
-                import time
-                time.sleep(3) 
-            
-        except Exception as e:
-            print(f"[CRITICAL ERROR] Execution failed: {e}")
-        finally:
-            if not ui.sleep_mode:
-                ui.set_state("idle")
+                if "UnanticipatedHostError" in str(e) or "DeviceUnavailable" in str(e):
+                    print(f"\n[STT] EXCLUSIVE LOCK DETECTED: Another app (like Discord) is locking your microphone. Please disable Exclusive Mode in Windows Sound Settings.")
+                else:
+                    print(f"\n[STT] Voice recognition failed: {e}")
+                
+            finally:
+                if os.path.exists(temp_wav):
+                    try:
+                        os.remove(temp_wav)
+                    except Exception:
+                        pass
+                if os.path.exists(signal_file):
+                    try:
+                        os.remove(signal_file)
+                    except Exception:
+                        pass
+                        
+            if ui.state == "idle":
+                break
+                
+            if not user_input:
+                continue
+                
+            ui.set_state("processing")
+            listener.is_muted = True 
+            try:
+                response = llm.generate(user_input, system_prompt=system_prompt)
+                
+                if ui.state == "idle":
+                    break
+                    
+                ui.set_state("speaking")
+                print(f"\n[Peter ({llm.model})]: {response}\n")
+                print("[TTS] Playing audio (Blue)...")
+                
+                try:
+                    p = pyaudio.PyAudio()
+                    speaker_arg = int(selected_speaker_index) if selected_speaker_index is not None else None
+                    
+                    stream = p.open(format=pyaudio.paInt16,
+                                    channels=1,
+                                    rate=voice.config.sample_rate,
+                                    output=True,
+                                    output_device_index=speaker_arg)
+                    
+                    for chunk in voice.synthesize(response):
+                        if ui.state != "speaking":
+                            print("\n[TTS] Playback interrupted by user.")
+                            break
+                        stream.write(chunk.audio_int16_bytes)
+                        
+                    stream.stop_stream()
+                    stream.close()
+                    p.terminate()
+                            
+                except Exception as e:
+                    print(f"[TTS] Failed to play Piper audio: {e}")
+                    time.sleep(3) 
+                
+            except Exception as e:
+                print(f"[CRITICAL ERROR] Execution failed: {e}")
+            finally:
                 listener.is_muted = False
+                
+            if ui.state == "idle":
+                break
+
+        if not ui.sleep_mode:
+            ui.set_state("idle")
+            listener.is_muted = False
 
     def on_settings():
         print("Opening Settings...")
