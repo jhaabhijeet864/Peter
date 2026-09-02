@@ -7,7 +7,7 @@ import fs from "fs";
  */
 async function main() {
     const input = process.argv[2] || "status";
-    const model = process.argv[3] || "phi3:mini";
+    const model = process.argv[3] || "qwen2.5-coder:3b";
     let systemPrompt = "";
     
     try {

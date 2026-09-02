@@ -8,7 +8,8 @@ class LocalLLM:
     MCP tool execution to the TS process.
     """
     def __init__(self, model: str = None):
-        self.model = model or os.getenv("OLLAMA_MODEL", "phi3:mini")
+        # Phase 14 Update: Default to tool-capable coder model
+        self.model = model or os.getenv("OLLAMA_MODEL", "qwen2.5-coder:3b")
 
     def generate(self, prompt: str, system_prompt: str = "") -> str:
         """

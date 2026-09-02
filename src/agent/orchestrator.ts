@@ -57,15 +57,33 @@ export class PeterAgent {
             }));
 
             // 2. Classification & LLM Generation
-            const response = await ollama.chat({
-                model: modelName,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: transcribedText }
-                ],
-                tools: ollamaTools,
-                stream: false
-            });
+            let response;
+            try {
+                response = await ollama.chat({
+                    model: modelName,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: transcribedText }
+                    ],
+                    tools: ollamaTools,
+                    stream: false
+                });
+            } catch (error: any) {
+                // GRACEFUL FALLBACK: If the model strictly rejects tool execution, retry as a standard chat!
+                if (error.message && error.message.includes("does not support tools")) {
+                    console.log(`[TS Agent] Notice: ${modelName} does not support tools. Falling back to verbal chat.`);
+                    response = await ollama.chat({
+                        model: modelName,
+                        messages: [
+                            { role: 'system', content: systemPrompt + "\n(Note: Your external MCP tools are offline for this model. Respond strictly verbally to the best of your knowledge.)" },
+                            { role: 'user', content: transcribedText }
+                        ],
+                        stream: false
+                    });
+                } else {
+                    throw error;
+                }
+            }
 
             // 3. Single-Turn Tool Execution
             if (response.message.tool_calls && response.message.tool_calls.length > 0) {
