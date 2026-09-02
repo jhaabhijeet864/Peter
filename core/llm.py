@@ -22,11 +22,13 @@ class LocalLLM:
             # Handle Windows-specific subprocess quirks for npm/npx
             npx_cmd = "npx.cmd" if os.name == "nt" else "npx"
             
+            # BUG 2 FIX: Enforce 30s timeout to prevent infinite zombie lockups if TS hangs
             result = subprocess.run(
                 [npx_cmd, "tsx", "src/agent/cli.ts", prompt, self.model],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                timeout=30 
             )
             
             # Parse the strict response marker to ignore TS console.log spam
@@ -42,8 +44,8 @@ class LocalLLM:
                 matches = re.findall(pattern, output, re.DOTALL)
                 
                 for match in matches:
-                    # Encode to base64 so it safely passes through CLI args without escaping nightmares
-                    b64_text = base64.b64encode(match.strip().encode('utf-8')).decode('utf-8')
+                    # BUG 3 FIX: Use errors='replace' to prevent Windows ANSI encoding crashes
+                    b64_text = base64.b64encode(match.strip().encode('utf-8', errors='replace')).decode('utf-8')
                     # Detached subprocess to run the Tkinter UI without blocking Python audio
                     subprocess.Popen(["python", "ui/terminal_popup.py", b64_text])
                 

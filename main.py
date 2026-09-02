@@ -81,16 +81,25 @@ def main():
             listener.is_muted = False
 
     def on_wake():
+        if listener.is_muted and not ui.sleep_mode:
+            return # Prevent overlapping wake calls
+            
         print("\n[UI] Wake triggered. Walkie-talkie mode active...")
         user_input = "Hello Peter, what is your status?"
         print(f"[STT] Heard: {user_input}")
         
         listener.is_muted = True 
-        
-        response = llm.generate(user_input, system_prompt=system_prompt)
-        print(f"\n[Peter ({llm.model})]: {response}\n")
-        
-        print("[TTS] Playing audio...")
+        try:
+            response = llm.generate(user_input, system_prompt=system_prompt)
+            print(f"\n[Peter ({llm.model})]: {response}\n")
+            print("[TTS] Playing audio...")
+            # tts.play(response) # Trigger TTS synthesis
+        except Exception as e:
+            print(f"[CRITICAL ERROR] Execution failed: {e}")
+        finally:
+            # BUG 1 FIX: Guarantee Peter always regains his hearing unless manually put to sleep
+            if not ui.sleep_mode:
+                listener.is_muted = False
 
     def on_settings():
         print("Opening Settings...")
