@@ -278,6 +278,9 @@ def main():
                 
                 # Consume the Piper TTS generator and write bytes directly to the audio hardware
                 for chunk in voice.synthesize(response):
+                    if ui.state != "speaking":
+                        print("\n[TTS] Playback interrupted by user.")
+                        break
                     stream.write(chunk.audio_int16_bytes)
                     
                 stream.stop_stream()
