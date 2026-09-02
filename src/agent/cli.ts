@@ -22,6 +22,12 @@ async function main() {
     
     // Output strictly the result to prevent log pollution in Python
     console.log(`__PETER_RESPONSE__:${result}`);
+    
+    // Phase 14 FIX: Forcefully close the Node event loop so it doesn't hang the Python subprocess
+    process.exit(0);
 }
 
-main().catch(console.error);
+main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+});

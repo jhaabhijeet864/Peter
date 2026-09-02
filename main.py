@@ -86,23 +86,38 @@ def main():
             return 
             
         print("\n[UI] Push-to-Talk triggered. Microphone Active (Green).")
-        print("[UI] Press the Tray Icon again to stop listening and process...")
         
-        # Phase 14: Simulated Push-to-Talk window. 
-        # (Wait for user to toggle the button from 'listening' to 'processing')
-        import time
-        while ui.state == "listening":
-            time.sleep(0.1)
-            
-        if ui.state != "processing":
-            return # User aborted or slept
-            
-        print("\n[UI] Processing Intent (Yellow)...")
-        # Get real transcription from the now un-mocked hardware
-        user_input = "What is my current battery percentage?" # Fallback for now until PyAudio is fully hooked
+        import speech_recognition as sr
+        r = sr.Recognizer()
         
+        try:
+            with sr.Microphone() as source:
+                r.adjust_for_ambient_noise(source, duration=0.2)
+                print("[UI] Speak now... (Auto-detects when you stop speaking)")
+                
+                # Capture the audio from the microphone
+                audio = r.listen(source, timeout=10, phrase_time_limit=15)
+                
+                # Immediately flip to Yellow once speech is captured
+                ui.set_state("processing")
+                print("\n[UI] Processing Intent (Yellow)...")
+                
+                # Run STT via free lightning-fast engine for this test phase
+                user_input = r.recognize_google(audio)
+                print(f"[STT] Transcribed: '{user_input}'")
+                
+        except sr.WaitTimeoutError:
+            print("[STT] No speech detected. Returning to idle.")
+            ui.set_state("idle")
+            return
+        except Exception as e:
+            print(f"[STT] Voice recognition failed: {e}")
+            ui.set_state("idle")
+            return
+            
         listener.is_muted = True 
         try:
+            # Inject real transcription into LLM
             response = llm.generate(user_input, system_prompt=system_prompt)
             
             ui.set_state("speaking")
@@ -110,6 +125,7 @@ def main():
             print("[TTS] Playing audio (Blue)...")
             
             # Simulate real TTS playback duration so the Blue state is visible
+            import time
             time.sleep(3) 
             # tts.play(response) 
             
