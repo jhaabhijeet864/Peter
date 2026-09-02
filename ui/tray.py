@@ -38,11 +38,14 @@ class SystemTrayUI:
         self.state = new_state
         if self.icon and not self.sleep_mode:
             if self.state == "listening":
-                self.icon.icon = self._create_image((0, 255, 0)) # Green
+                # Bright Metallic White/Silver (Active listening)
+                self.icon.icon = self._create_image((230, 235, 238)) 
             elif self.state == "speaking":
-                self.icon.icon = self._create_image((0, 0, 255)) # Blue
+                # Dark Gunmetal/Steel (Processing/Speaking)
+                self.icon.icon = self._create_image((67, 75, 77)) 
             else:
-                self.icon.icon = self._create_image((255, 255, 255)) # White
+                # Brushed Silver (Idle)
+                self.icon.icon = self._create_image((176, 181, 185)) 
 
     def _generate_model_menu(self):
         try:
@@ -98,7 +101,8 @@ class SystemTrayUI:
         self.sleep_mode = not self.sleep_mode
         self.toggle_sleep_cb(self.sleep_mode)
         if self.sleep_mode:
-            self.icon.icon = self._create_image((128, 128, 128)) # Grey for sleep
+            # Deep Obsidian / Dark Iron for Sleep Mode
+            self.icon.icon = self._create_image((26, 28, 29)) 
         else:
             self.set_state("idle")
 
